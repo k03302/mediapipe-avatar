@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin="anonymous"></script>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <video class="input_video"></video>
+    </div>
+    <div class="buttons">
+        <button id="cameraControl"></button>
+    </div>
+    <a-scene>
+        <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9"></a-box>
+        <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
+        <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
+        <a-plane position="0 0 -4" rotation="-90 0 0" width="100" height="100" color="#7BC8A4"></a-plane>
+        <a-sky color="#ECECEC"></a-sky>
+    </a-scene>
+</body>
+
+</html>
+
+<script type="module">
+    const videoElement = document.getElementsByClassName('input_video')[0];
+    const canvasElement = document.getElementsByClassName('output_canvas')[0];
+    const cameraBtnEl = document.getElementById('cameraControl');
+    cameraBtnEl.onclick = onCameraButtonPressed;
+
+    let isCamOn = false;
+
+    function initializeButton() {
+        cameraBtnEl.style.position = 'fixed';
+        cameraBtnEl.style.zIndex = 10000;
+        cameraBtnEl.style.left = '10px';
+        cameraBtnEl.style.bottom = '10px';
+        cameraBtnEl.style.display = 'inline';
+        cameraBtnEl.innerHTML = 'start camera';
+    }
+
+    function onCameraButtonPressed() {
+        if (isCamOn) {
+            camera.stop();
+            cameraBtnEl.innerHTML = 'start camera';
+        } else {
+            camera.start();
+            cameraBtnEl.innerHTML = 'end camera';
+        }
+        isCamOn = !isCamOn;
+    }
+
+    function onResults(results) {
+        //console.log(results);
+    }
+
+    const holistic = new Holistic({
+        locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+        }
+    });
+    holistic.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: true,
+        smoothSegmentation: true,
+        refineFaceLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+    });
+    holistic.onResults(onResults);
+
+    const camera = new Camera(videoElement, {
+        onFrame: async () => {
+            await holistic.send({ image: videoElement });
+        },
+        width: 1280,
+        height: 720
+    });
+
+
+
+    initializeButton();
+</script>
