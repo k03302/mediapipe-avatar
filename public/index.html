@@ -3,6 +3,8 @@
 
 <head>
     <meta charset="utf-8">
+
+
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
         crossorigin="anonymous"></script>
@@ -13,80 +15,245 @@
 </head>
 
 <body>
-    <div class="container">
-        <video class="input_video"></video>
-    </div>
-    <div class="buttons">
-        <button id="cameraControl"></button>
-    </div>
+
     <a-scene>
-        <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9"></a-box>
-        <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
-        <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
-        <a-plane position="0 0 -4" rotation="-90 0 0" width="100" height="100" color="#7BC8A4"></a-plane>
+        <a-asset>
+            <video id="input_video" width="1280" height="720"></video>Z
+            <video src="squat.mp4" id="input_video1" loop="true" width="100" height="200"></video>
+            <video src="stretching.mp4" id="input_video2" loop="true" width="200" height="100"></video>
+        </a-asset>
+        <a-box position="-1 0.5 -5" rotation="0 45 0" color="#4CC3D9"></a-box>
+        <a-sphere position="0 1.25 -7" radius="1.25" color="#EF2D5E"></a-sphere>
+        <a-cylinder position="1 0.75 -5" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
         <a-sky color="#ECECEC"></a-sky>
+        <a-gltf-model position="0 0 -2" src="male.glb" id="male"></a-gltf-model>
+
+        <a-entity id="camera" camera look-controls wasd-controls="fly:true" position="0 1 0">
+            <a-video id="video_entity" visible="false"></a-video>
+        </a-entity>
     </a-scene>
+
 </body>
 
 </html>
-
 <script type="module">
-    const videoElement = document.getElementsByClassName('input_video')[0];
-    const canvasElement = document.getElementsByClassName('output_canvas')[0];
-    const cameraBtnEl = document.getElementById('cameraControl');
-    cameraBtnEl.onclick = onCameraButtonPressed;
+    import MediapipeAvatarManager from './src/MediapipeAvatarManager.js'
 
-    let isCamOn = false;
+    const videoElement = document.getElementById('input_video');
+    const videoEntity = document.getElementById('video_entity');
+    const screenWidth = videoElement.width;
+    const screenHeight = videoElement.height;
 
-    function initializeButton() {
-        cameraBtnEl.style.position = 'fixed';
-        cameraBtnEl.style.zIndex = 10000;
-        cameraBtnEl.style.left = '10px';
-        cameraBtnEl.style.bottom = '10px';
-        cameraBtnEl.style.display = 'inline';
-        cameraBtnEl.innerHTML = 'start camera';
+    const cameraEntity = document.getElementById('camera');
+    const avatarManager = new MediapipeAvatarManager();
+
+    const INITIAL_USE_HAND = true;
+    const INITIAL_USE_KALMAN_FILTER = false;
+    const INITIAL_SLERP_RATIO = 0.3;
+    const INITIAL_VIDEO_SRC = '';
+
+
+    const camera = getNewCamera();
+    const holistic = getNewHolisticTracker();
+
+    const avatarEl = document.getElementById('male');
+    avatarEl.addEventListener('model-loaded', onAvatarLoaded);
+
+    function getNewCamera() {
+        return new Camera(videoElement, {
+            onFrame: async () => {
+                await holistic.send({ image: videoElement });
+            },
+            width: screenWidth,
+            height: screenHeight
+        });
     }
 
-    function onCameraButtonPressed() {
-        if (isCamOn) {
-            camera.stop();
-            cameraBtnEl.innerHTML = 'start camera';
+    function getNewHolisticTracker() {
+        const holistic = new Holistic({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
+            }
+        });
+        holistic.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: true,
+            smoothSegmentation: true,
+            refineFaceLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        holistic.onResults((results) => { avatarManager.update(results); });
+        return holistic;
+    }
+
+    function onAvatarLoaded(evt) {
+        const avatar = this.object3D.children[0];
+        avatarManager.bindAvatar(avatar, 'RPM');
+    }
+
+    function onVideSelected(evt) {
+        const value = this.value;
+        camera.stop();
+        if (value === 'none') {
+            videoEntity.setAttribute('visible', false);
         } else {
-            camera.start();
-            cameraBtnEl.innerHTML = 'end camera';
+            const videoEl = document.getElementById(value);
+
+            videoEntity.setAttribute('visible', true);
+            videoEntity.setAttribute('src', '#' + value);
+
+            setVideoEntity(videoEl.width, videoEl.height);
+
+            avatarManager.initKalmanFilter();
+
+            if (value === 'input_video') {
+                camera.start();
+            } else {
+                let first = true;
+                const updateFrame = async function (now) {
+                    if (first) {
+                        await holistic.initialize();
+                        first = false;
+                    }
+                    await holistic.send({ image: videoEl });
+                    videoEl.requestVideoFrameCallback(updateFrame);
+                };
+                videoEl.requestVideoFrameCallback(updateFrame);
+                videoEl.play();
+            }
         }
-        isCamOn = !isCamOn;
+        this.setAttribute('disabled', false);
     }
 
-    function onResults(results) {
-        //console.log(results);
+
+    function createUI() {
+        const UILayer = document.createElement('div');
+        UILayer.style.position = 'fixed';
+        UILayer.style.zIndex = 10000;
+        UILayer.style.left = '10px';
+        UILayer.style.bottom = '10px';
+        UILayer.style.display = 'block';
+        document.body.appendChild(UILayer);
+
+
+        const selectBox = document.createElement('select');
+        selectBox.onchange = onVideSelected;
+
+        const noneOptionEl = document.createElement('option');
+        noneOptionEl.innerHTML = 'none';
+        noneOptionEl.value = '';
+
+        selectBox.appendChild(noneOptionEl);
+
+        const assetEl = document.getElementsByTagName('a-asset')[0];
+        for (const child of assetEl.children) {
+            const optionEl = document.createElement('option');
+            optionEl.innerHTML = (child.src == '') ? 'use camera' : child.src;
+            optionEl.value = child.id;
+
+            selectBox.appendChild(optionEl);
+        }
+
+        for (const child of selectBox.children) {
+            if (child.value && child.value === INITIAL_VIDEO_SRC) {
+                child.checked = true;
+                break;
+            }
+        }
+
+        UILayer.appendChild(selectBox);
+
+
+        const slerpRatioSlider = document.createElement('input');
+        slerpRatioSlider.setAttribute('type', 'range');
+        slerpRatioSlider.setAttribute('min', '0');
+        slerpRatioSlider.setAttribute('max', '1');
+        slerpRatioSlider.setAttribute('step', '0.1');
+        slerpRatioSlider.setAttribute('id', 'slerp-coef-slider')
+        slerpRatioSlider.style.bottom = '30px';
+        slerpRatioSlider.style.left = '80px';
+        slerpRatioSlider.style.position = 'absolute';
+        slerpRatioSlider.style.position = 'absolute';
+        slerpRatioSlider.onchange = function (evt) {
+            avatarManager.setSlerpRatio(this.value);
+        };
+        slerpRatioSlider.value = INITIAL_SLERP_RATIO;
+        avatarManager.setSlerpRatio(slerpRatioSlider.value);
+        UILayer.append(slerpRatioSlider);
+
+        const sliderLabel = document.createElement('label');
+        sliderLabel.setAttribute('for', 'slerp-coef-slider');
+
+        sliderLabel.innerHTML = 'slerp ratio'
+        sliderLabel.style.bottom = '30px';
+        sliderLabel.style.left = '5px';
+        sliderLabel.style.position = 'absolute';
+        UILayer.append(sliderLabel);
+
+        const useHandCbx = document.createElement('input');
+        useHandCbx.setAttribute('type', 'checkbox');
+        useHandCbx.setAttribute('id', 'use-hand-cbx');
+        useHandCbx.style.bottom = '60px';
+        useHandCbx.style.left = '80px';
+        useHandCbx.style.position = 'absolute';
+        useHandCbx.onchange = function (evt) {
+            avatarManager.setUseHand(this.checked);
+        };
+        useHandCbx.checked = INITIAL_USE_HAND;
+        avatarManager.setUseHand(useHandCbx.checked);
+        UILayer.append(useHandCbx);
+
+        const useHandLabel = document.createElement('label');
+        useHandLabel.setAttribute('for', 'use-hand-cbx');
+        useHandLabel.innerHTML = 'use hand'
+        useHandLabel.style.bottom = '60px';
+        useHandLabel.style.left = '5px';
+        useHandLabel.style.position = 'absolute';
+        UILayer.append(useHandLabel);
+
+        const useKalmanFilterCbx = document.createElement('input');
+        useKalmanFilterCbx.setAttribute('type', 'checkbox');
+        useKalmanFilterCbx.setAttribute('id', 'use-kalman-filter-cbx');
+        useKalmanFilterCbx.style.bottom = '90px';
+        useKalmanFilterCbx.style.left = '130px';
+        useKalmanFilterCbx.style.position = 'absolute';
+        useKalmanFilterCbx.onchange = function (evt) {
+            avatarManager.setUseKalmanFilter(this.checked);
+        };
+        useKalmanFilterCbx.checked = INITIAL_USE_KALMAN_FILTER;
+        avatarManager.setUseKalmanFilter(useKalmanFilterCbx.checked);
+        UILayer.append(useKalmanFilterCbx);
+
+        const useKalmanFilterLabel = document.createElement('label');
+        useKalmanFilterLabel.setAttribute('for', 'use-kalman-filter-cbx');
+        useKalmanFilterLabel.innerHTML = 'use kalman filter'
+        useKalmanFilterLabel.style.bottom = '90px';
+        useKalmanFilterLabel.style.left = '5px';
+        useKalmanFilterLabel.style.position = 'absolute';
+        UILayer.append(useKalmanFilterLabel);
+
     }
 
-    const holistic = new Holistic({
-        locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`;
-        }
-    });
-    holistic.setOptions({
-        modelComplexity: 1,
-        smoothLandmarks: true,
-        enableSegmentation: true,
-        smoothSegmentation: true,
-        refineFaceLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-    });
-    holistic.onResults(onResults);
 
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await holistic.send({ image: videoElement });
-        },
-        width: 1280,
-        height: 720
-    });
+    function setVideoEntity(videoWidth, videoHeight) {
+        const aspect = screenWidth / screenHeight;
+        const fovX = cameraEntity.getAttribute('camera').fov;
 
 
+        const videoMarginOnScreen = 50;
+        const videoSizeDivideScale = 2;
+        const videoEntityDistance = 0.1;
 
-    initializeButton();
+        const videoEdgeLengthHalf = videoEntityDistance * Math.tan(Math.PI * fovX / 360);
+
+        const videoEntityWidth = videoEdgeLengthHalf * (videoWidth / (videoWidth + videoHeight));
+        const videoEntityHeight = videoEdgeLengthHalf * (videoHeight / (videoWidth + videoHeight));
+        videoEntity.setAttribute('position', { x: -videoEdgeLengthHalf, y: videoEdgeLengthHalf / 2, z: -videoEntityDistance });
+        videoEntity.setAttribute('width', videoEntityWidth);
+        videoEntity.setAttribute('height', videoEntityHeight);
+    }
+
+    createUI();
 </script>
