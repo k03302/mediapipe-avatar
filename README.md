@@ -6,8 +6,7 @@
 [![https://www.youtube.com/watch?v=h8eNJQtV-Ks](https://img.youtube.com/vi/h8eNJQtV-Ks/0.jpg)](https://www.youtube.com/watch?v=h8eNJQtV-Ks)
 ## Motivation of this project
 - <span>Basically, Mdiapipe holistic tracking offers only the position of the landmarks, not the transformation of each bone. Therefore implementing avatar puppeting with mediapipe requires additional calculation transforming from landmark positions to rotation of each avatar bone.</span><br><img src="./img/landmarks.png" alt="drawing" width="400"/>
-- <span>In contrast, ARKit body ulu1323
-- om/documentation/arkit/arkit_in_ios/content_anchors/validating_a_model_for_motion_capture">More information about ARKit</a></span><br><img src="./img/arkitbones1.png" width="200"/><img src="./img/arkitbones3.png" width="200"/><img src="./img/arkitbones4.png" width="200"/>
+- <span>In contrast, ARKit body tracking offers the transformation matrix of each bone, not requiring additional calculation. This project also provides avatar puppeting framework with ARKit body tracking, not so much calculation included. <a href="https://developer.apple.com/documentation/arkit/arkit_in_ios/content_anchors/validating_a_model_for_motion_capture">More information about ARKit</a></span><br><img src="./img/arkitbones1.png" width="200"/><img src="./img/arkitbones3.png" width="200"/><img src="./img/arkitbones4.png" width="200"/>
 - There's already a similar project using mediapipe to control avatar: Kalido Kit. Below is the demonstraion of Kalido Kit. To run it, check this link. [Kalioface](https://3d.kalidoface.com/)
 
 [![https://www.youtube.com/watch?v=KrbmtjGvzr0](https://img.youtube.com/vi/KrbmtjGvzr0/0.jpg)](https://www.youtube.com/watch?v=KrbmtjGvzr0)
