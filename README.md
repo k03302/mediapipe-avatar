@@ -20,5 +20,3 @@
 - use hand: Activate hand tracking.
 - slerp ratio: Every time a new bone rotation is calculated, it's slerped (spherically linear interpolated). If slerp ratio is 0.3, only 30% of the new rotation is effective.
 - slider: Choose the video source for meidapipe holistic tracker. Once the option is chosen, the slider deactivates.
-
-
